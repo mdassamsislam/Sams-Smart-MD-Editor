@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MD Editor with Slash Commands + Table Editor</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #fff;
+    color: #000;
+    transition: background 0.3s, color 0.3s;
+  }
+  .toolbar {
+    padding: 0.5rem;
+    background: #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .toolbar button {
+    padding: 0.4rem 1rem;
+    border: none;
+    border-radius: 6px;
+    background: #4f46e5;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.2s;
+  }
+  .toolbar button:hover {
+    background: #4338ca;
+    transform: scale(1.05);
+  }
+  .editor-container {
+    display: flex;
+    flex: 1;
+  }
+  textarea {
+    width: 50%;
+    padding: 1rem;
+    border: none;
+    resize: none;
+    font-size: 1rem;
+    outline: none;
+    line-height: 1.5;
+    background: #fff;
+    color: #000;
+    transition: background 0.3s, color 0.3s;
+  }
+  .preview {
+    width: 50%;
+    padding: 1rem;
+    border-left: 1px solid #ddd;
+    overflow-y: auto;
+    background: #f9f9f9;
+    transition: background 0.3s, color 0.3s;
+  }
+  .slash-menu {
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    width: 200px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: none;
+    z-index: 999;
+  }
+  .slash-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .slash-menu li {
+    padding: 8px 12px;
+    cursor: pointer;
+  }
+  .slash-menu li:hover,
+  .slash-menu li.selected {
+    background: #f0f0f0;
+  }
+
+  /* Dark Theme */
+  .dark {
+    background-color: #121212;
+    color: #fff;
+  }
+  .dark .preview {
+    background: #1e1e1e;
+    border-color: #333;
+    color: #e4e4e4;
+  }
+  .dark .toolbar {
+    background: #1f1f1f;
+  }
+  .dark textarea {
+    background: #1a1a1a;
+    color: #e0e0e0;
+  }
+  .dark .toolbar button {
+    background: #2563eb;
+    color: #fff;
+  }
+  .dark .toolbar button:hover {
+    background: #1d4ed8;
+  }
+  .dark .slash-menu {
+    background: #1e1e1e;
+    border-color: #333;
+    color: #ddd;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.8);
+  }
+  .dark .slash-menu li:hover,
+  .dark .slash-menu li.selected {
+    background: #333;
+    color: #fff;
+  }
+
+  /* Table Editor Modal */
+  #tableModal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 400px;
+    max-width: 90vw;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    padding: 1rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  #tableModal.dark {
+    background: #1e1e1e;
+    color: #ddd;
+    border-color: #333;
+  }
+  #tableModal table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  #tableModal td, #tableModal th {
+    border: 1px solid #999;
+    padding: 0.5rem;
+  }
+  #tableModal input {
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font-size: 1rem;
+  }
+  #tableModal.dark td, #tableModal.dark th {
+    border-color: #555;
+  }
+  #tableModal.dark input {
+    color: #ddd;
+  }
+  #tableModal button {
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #tableModal button:hover {
+    background: #4338ca;
+  }
+  /* Overlay for modal */
+  #overlay {
+    display: none;
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.3);
+    z-index: 999;
+  }
+  #overlay.dark {
+    background: rgba(255,255,255,0.1);
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="toggleTheme()">Toggle Dark/Light</button>
+  <button onclick="copyMarkdown()">Copy Markdown</button>
+</div>
+
+<div class="editor-container">
+  <textarea id="markdownInput" placeholder="Write markdown here..."></textarea>
+  <div class="preview" id="markdownPreview"></div>
+</div>
+
+<div class="slash-menu" id="slashMenu">
+  <ul id="commandList"></ul>
+</div>
+
+<!-- Table Editor Modal -->
+<div id="overlay"></div>
+<div id="tableModal" role="dialog" aria-modal="true" aria-labelledby="tableModalLabel">
+  <h3 id="tableModalLabel">Edit Table</h3>
+  <table id="tableEditor">
+    <thead><tr></tr></thead>
+    <tbody></tbody>
+  </table>
+  <button id="saveTableBtn">Save Table</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+  const input = document.getElementById('markdownInput');
+  const preview = document.getElementById('markdownPreview');
+  const slashMenu = document.getElementById('slashMenu');
+  const commandList = document.getElementById('commandList');
+
+  // Modal elements
+  const tableModal = document.getElementById('tableModal');
+  const overlay = document.getElementById('overlay');
+  const tableEditor = document.getElementById('tableEditor');
+  const saveTableBtn = document.getElementById('saveTableBtn');
+
+  const commands = [
+    { label: 'h1', syntax: '# ' },
+    { label: 'h2', syntax: '## ' },
+    { label: 'h3', syntax: '### ' },
+    { label: 'text', syntax: '' },
+    { label: 'bold', syntax: '**bold text**' },
+    { label: 'italic', syntax: '*italic text*' },
+    { label: 'underline', syntax: '<u>underline text</u>' },
+    { label: 'Bulleted List', syntax: '- item' },
+    { label: 'Numbered List', syntax: '1. item' },
+    { label: 'Checklist', syntax: '- [ ] item' },
+    { label: 'Image', syntax: '![alt text](image-url)' },
+    { label: 'link', syntax: '[title](https://example.com)' },
+    { label: 'code', syntax: '`code`' },
+    { label: 'quote', syntax: '> quote' },
+    { label: 'table', syntax: '' }  // handled specially
+  ];
+
+  let slashPosition = -1;
+
+  input.addEventListener('input', () => {
+    preview.innerHTML = marked.parse(input.value);
+
+    const cursorPosition = input.selectionStart;
+    const textUptoCursor = input.value.slice(0, cursorPosition);
+    const lastSlash = textUptoCursor.lastIndexOf('/');
+
+    if (
+      lastSlash >= 0 &&
+      (lastSlash === 0 || /\s/.test(textUptoCursor[lastSlash - 1]))
+    ) {
+      slashPosition = lastSlash;
+
+      // Extract the command after "/"
+      const afterSlash = textUptoCursor.slice(lastSlash + 1).toLowerCase();
+
+      // Filter commands based on what user typed after slash
+      const filtered = commands.filter(cmd => cmd.label.toLowerCase().startsWith(afterSlash));
+
+      if (filtered.length > 0) {
+        showSlashMenu(filtered);
+      } else {
+        hideSlashMenu();
+      }
+    } else {
+      hideSlashMenu();
+    }
+  });
+
+  input.addEventListener('click', hideSlashMenu);
+
+  input.addEventListener('keydown', (e) => {
+    if (slashMenu.style.display === 'block') {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const current = document.querySelector('.slash-menu li.selected');
+        const next = current?.nextElementSibling || commandList.firstElementChild;
+        if (current) current.classList.remove('selected');
+        next.classList.add('selected');
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const current = document.querySelector('.slash-menu li.selected');
+        const prev = current?.previousElementSibling || commandList.lastElementChild;
+        if (current) current.classList.remove('selected');
+        prev.classList.add('selected');
+      } else if (e.key === 'Enter') {
+        const selected = document.querySelector('.slash-menu li.selected');
+        if (selected) {
+          e.preventDefault();
+          if (selected.textContent.toLowerCase() === 'table') {
+            insertTableSkeleton();
+          } else {
+            insertCommand(selected.dataset.syntax);
+          }
+        }
+      }
+    }
+
+    if (e.key === 'Enter') {
+      const cursor = input.selectionStart;
+      const lines = input.value.substring(0, cursor).split("\n");
+      const currentLine = lines[lines.length - 1];
+
+      let matchBullet = currentLine.match(/^\s*[-*+]\s/);
+      let matchNumber = currentLine.match(/^\s*(\d+)\.\s/);
+      let matchChecklist = currentLine.match(/^\s*- \[ \] /);
+
+      if (matchBullet) {
+        e.preventDefault();
+        insertTextAtCursor('\n' + matchBullet[0]);
+      } else if (matchNumber) {
+        e.preventDefault();
+        insertTextAtCursor(`\n${parseInt(matchNumber[1]) + 1}. `);
+      } else if (matchChecklist) {
+        e.preventDefault();
+        insertTextAtCursor('\n- [ ] ');
+      }
+    }
+  });
+
+  function insertTextAtCursor(textToInsert) {
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const before = input.value.substring(0, start);
+    const after = input.value.substring(end);
+    input.value = before + textToInsert + after;
+    input.selectionStart = input.selectionEnd = before.length + textToInsert.length;
+    preview.innerHTML = marked.parse(input.value);
+  }
+
+  function showSlashMenu(filteredCommands) {
+    const rect = input.getBoundingClientRect();
+    const lineHeight = 20;
+    // Approximate vertical position of cursor for menu (basic)
+    const top = rect.top + window.scrollY + (input.selectionStart / 60) * lineHeight;
+    slashMenu.style.top = top + 'px';
+    slashMenu.style.left = rect.left + 20 + 'px';
+    slashMenu.style.display = 'block';
+    commandList.innerHTML = '';
+
+    filteredCommands.forEach((cmd, i) => {
+      const li = document.createElement('li');
+      li.textContent = cmd.label;
+      li.dataset.syntax = cmd.syntax;
+      if (i === 0) li.classList.add('selected');
+      li.onclick = () => {
+        if (cmd.label.toLowerCase() === 'table') {
+          insertTableSkeleton();
+        } else {
+          insertCommand(cmd.syntax);
+        }
+      };
+      commandList.appendChild(li);
+    });
+  }
+
+  function hideSlashMenu() {
+    slashMenu.style.display = 'none';
+    slashPosition = -1;
+  }
+
+  function insertCommand(syntax) {
+    const text = input.value;
+    const start = slashPosition;
+    const end = input.selectionStart;
+    const before = text.substring(0, start);
+    const after = text.substring(end);
+    const newCursor = (before + syntax).length;
+    input.value = before + syntax + after;
+    input.focus();
+    input.selectionStart = input.selectionEnd = newCursor;
+    hideSlashMenu();
+    preview.innerHTML = marked.parse(input.value);
+  }
+
+  // Insert a basic 3x3 markdown table and open editor modal
+  function insertTableSkeleton() {
+    hideSlashMenu();
+    const tableMarkdown =
+`| Header 1 | Header 2 | Header 3 |
+| -------- | -------- | -------- |
+| Cell 1   | Cell 2   | Cell 3   |
+| Cell 4   | Cell 5   | Cell 6   |`;
+    insertTextAtCursor(tableMarkdown + '\n');
+
+    openTableEditorFromMarkdown(tableMarkdown);
+  }
+
+  // Parse markdown table text to fill the visual editor
+  function openTableEditorFromMarkdown(md) {
+    const lines = md.trim().split('\n');
+    if (lines.length < 3) return;
+
+    const headers = lines[0].slice(1, -1).split('|').map(s => s.trim());
+    const dataLines = lines.slice(2);
+
+    const data = dataLines.map(line => line.slice(1, -1).split('|').map(s => s.trim()));
+
+    buildTableEditor(headers, data);
+    showTableModal();
+  }
+
+  function buildTableEditor(headers, data) {
+    const thead = tableEditor.querySelector('thead tr');
+    const tbody = tableEditor.querySelector('tbody');
+    thead.innerHTML = '';
+    tbody.innerHTML = '';
+
+    headers.forEach(text => {
+      const th = document.createElement('th');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = text;
+      th.appendChild(input);
+      thead.appendChild(th);
+    });
+
+    data.forEach(row => {
+      const tr = document.createElement('tr');
+      row.forEach(cellText => {
+        const td = document.createElement('td');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = cellText;
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function showTableModal() {
+    overlay.style.display = 'block';
+    tableModal.style.display = 'block';
+    if(document.body.classList.contains('dark')) {
+      tableModal.classList.add('dark');
+      overlay.classList.add('dark');
+    } else {
+      tableModal.classList.remove('dark');
+      overlay.classList.remove('dark');
+    }
+  }
+
+  function hideTableModal() {
+    overlay.style.display = 'none';
+    tableModal.style.display = 'none';
+  }
+
+  saveTableBtn.addEventListener('click', () => {
+    const headers = [...tableEditor.querySelectorAll('thead input')].map(i => i.value || ' ');
+    const rows = [...tableEditor.querySelectorAll('tbody tr')].map(tr => {
+      return [...tr.querySelectorAll('input')].map(i => i.value || ' ');
+    });
+
+    const headerLine = '| ' + headers.join(' | ') + ' |';
+    const separatorLine = '| ' + headers.map(() => '---').join(' | ') + ' |';
+    const dataLines = rows.map(row => '| ' + row.join(' | ') + ' |');
+
+    const newTableMd = [headerLine, separatorLine, ...dataLines].join('\n');
+
+    // Replace last inserted table markdown (simple replace last table block)
+    const val = input.value;
+    const tableRegex = /(\|.*\|\n\|[-\s|]+\|\n(?:\|.*\|\n?)*)$/m;
+    if(tableRegex.test(val)) {
+      input.value = val.replace(tableRegex, newTableMd + '\n');
+    } else {
+      input.value += '\n' + newTableMd + '\n';
+    }
+    preview.innerHTML = marked.parse(input.value);
+    hideTableModal();
+  });
+
+  overlay.addEventListener('click', hideTableModal);
+
+  function toggleTheme() {
+    document.body.classList.toggle('dark');
+    if(document.body.classList.contains('dark')) {
+      tableModal.classList.add('dark');
+      overlay.classList.add('dark');
+    } else {
+      tableModal.classList.remove('dark');
+      overlay.classList.remove('dark');
+    }
+  }
+
+  function copyMarkdown() {
+    input.select();
+    document.execCommand('copy');
+    alert('Markdown copied to clipboard!');
+  }
+</script>
+
+</body>
+</html>
